@@ -1,0 +1,367 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Core user of the platform 
+model User {
+  id    String  @id @unique // either email or phone number
+  name  String
+  phone String?
+  fcmToken String? // Firebase Cloud Messaging token for push notifications (deprecated - use Device model)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sellerAccounts SellerRoleAssignment[]
+  riderAccounts  RiderRoleAssignment[]
+  devices Device[]
+}
+
+model SellerRoleAssignment {
+  id String @id @default(cuid())
+
+  user   User   @relation(fields: [userId], references: [id])
+  userId String
+
+  role UserRole
+
+  seller   Seller @relation(fields: [sellerId], references: [id])
+  sellerId String
+
+  createdAt DateTime @default(now())
+}
+
+model RiderRoleAssignment {
+  id String @id @default(cuid())
+
+  user   User   @relation(fields: [userId], references: [id])
+  userId String
+
+  role UserRole
+
+  rider   Rider  @relation(fields: [riderId], references: [id])
+  riderId String
+
+  createdAt DateTime @default(now())
+}
+
+/// A business that sends packages using the platform
+model Seller {
+  id String @id @default(cuid())
+
+  businessName  String
+  contactName   String
+  pickupAddress String
+
+  phone         String?
+  businessEmail String?
+  
+
+  deliveries Delivery[]
+
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  status    SellerStatus @default(PENDING_VERIFICATION)
+
+  roleAssignments SellerRoleAssignment[]
+  addresses Address[]
+}
+
+/// A rider / courier that delivers packages
+model Rider {
+  id String @id @default(cuid())
+
+  // Personal Information
+  email String?
+  phone String?
+
+  // Ghana Card Information
+  ghanaCardName    String?
+  ghanaCardNumber  String?
+  dateOfBirth      DateTime?
+
+  // Motorcycle License Information
+  licenseNumber    String?
+  licenseExpiration DateTime?
+  bikeInfo         String?
+
+  // Device Verification
+  hasSmartphone    Boolean @default(false)
+  hasGhanaNumber   Boolean @default(false)
+
+  // Status
+  status    RiderStatus @default(PENDING_APPROVAL)
+  isOnline  Boolean     @default(false)
+  lastOnlineAt DateTime?
+
+  // Relationships
+  deliveries Delivery[]
+  roleAssignments RiderRoleAssignment[]
+  files RiderFile[]
+  payouts RiderPayout[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Customer {
+  id    String  @id @default(cuid())
+  name  String?
+  phone String? @unique
+
+  deliveries Delivery[]
+  addresses Address[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// High-level role of a user
+enum UserRole {
+  OWNER // Default role for first user on Seller or Rider onboarding
+  ADMIN // Additional role user (not platform admin)
+}
+
+enum SellerStatus {
+  PENDING_VERIFICATION
+  PENDING_INFORMATION_UPDATE
+  VERIFIED
+  INACTIVE
+  ACTIVE
+  SUSPENDED
+}
+
+enum RiderStatus {
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  INACTIVE
+  ACTIVE
+  SUSPENDED
+}
+
+/// Platform admin users with multiple roles
+model PlatformUser {
+  id          String  @id @default(cuid())
+  email       String  @unique
+  name        String?
+  firebaseUid String? @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  roles PlatformUserRoleAssignment[]
+}
+
+/// Platform user role assignments (many-to-many)
+model PlatformUserRoleAssignment {
+  id String @id @default(cuid())
+
+  platformUser   PlatformUser @relation(fields: [platformUserId], references: [id], onDelete: Cascade)
+  platformUserId String
+
+  role PlatformUserRole
+
+  createdAt DateTime @default(now())
+}
+
+enum PlatformUserRole {
+  OWNER
+  ADMIN
+  SELLER_ADMIN
+  RIDER_ADMIN
+  ANALYTICS
+}
+
+/// Status of a delivery / order
+enum DeliveryStatus {
+  PENDING
+  PICKED_UP
+  IN_TRANSIT
+  DELIVERED
+  CANCELLED
+}
+
+/// A delivery order created by a seller or customer
+model Delivery {
+  id String @id @default(cuid())
+
+  /// External-facing order identifier used for tracking (e.g. ORD-001)
+  orderId String @unique
+
+  pickupAddress  String
+  dropoffAddress String
+
+  /// Pickup location coordinates (from seller address)
+  pickupLatitude Decimal?
+  pickupLongitude Decimal?
+
+  /// Dropoff location coordinates (decoupled from address for flexibility)
+  dropoffLatitude Decimal?
+  dropoffLongitude Decimal?
+
+  /// Agreed delivery fee for this order
+  fee Decimal @default(0)
+
+  status DeliveryStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  /// When the delivery was actually completed
+  completedAt DateTime?
+
+  /// Optional associations
+  riderId String?
+  rider   Rider?  @relation(fields: [riderId], references: [id])
+
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id])
+
+  /// Customer contact phone for this specific delivery
+  customerPhone String?
+
+  sellerId String?
+  seller   Seller? @relation(fields: [sellerId], references: [id])
+
+  /// Free-form notes or special instructions
+  notes String?
+
+  /// PIN for seller to confirm pickup (generated on order creation)
+  pickupConfirmationPin String?
+
+  /// PIN for customer to confirm delivery (generated on order creation)
+  deliveryConfirmationPin String?
+}
+
+/// Payouts made to riders for their completed deliveries
+model RiderPayout {
+  id       String   @id @default(cuid())
+  rider    Rider    @relation(fields: [riderId], references: [id], onDelete: Cascade)
+  riderId  String
+
+  amount        Decimal   @default(0)
+  status        RiderPayoutStatus @default(PENDING)
+  periodStart   DateTime?
+  periodEnd     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum RiderPayoutStatus {
+  PENDING
+  PAID
+  CANCELLED
+}
+
+/// File storage for uploaded documents and images
+model File {
+  id String @id @default(cuid())
+
+  /// UUID used for file access (without hyphens)
+  uuid String @unique
+
+  /// Original filename as uploaded
+  originalName String
+
+  /// Stored filename (UUID + extension)
+  storedName String
+
+  /// MIME type of the file
+  mimeType String?
+
+  /// File size in bytes
+  size Int?
+
+  /// User who owns/uploaded the file
+  ownerId String?
+
+  /// Relationships
+  riderFiles RiderFile[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Junction table for Rider-File relationships (many-to-many)
+model RiderFile {
+  id String @id @default(cuid())
+
+  rider   Rider @relation(fields: [riderId], references: [id], onDelete: Cascade)
+  riderId String
+
+  file   File @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  fileId String
+
+  /// Type of file (LICENSE, PROFILE_PHOTO, etc.)
+  fileType FileType
+
+  createdAt DateTime @default(now())
+
+  @@unique([riderId, fileId, fileType])
+}
+
+enum FileType {
+  LICENSE
+  PROFILE_PHOTO
+  GHANA_CARD
+  OTHER
+}
+
+/// Device information for multi-device support
+model Device {
+  id String @id @default(cuid())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  /// Firebase Cloud Messaging token for this device
+  fcmToken String @unique
+
+  /// Optional device information (browser, OS, etc.)
+  deviceInfo String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+/// Addresses for customers (delivery) and sellers (pickup/branches)
+model Address {
+  id String @id @default(cuid())
+
+  /// Customer address (for delivery locations)
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId String?
+
+  /// Seller address (for pickup locations/branches)
+  seller   Seller? @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  sellerId String?
+
+  /// Name/label for the address (e.g., "Home", "Work", "Branch 1", "Main Store")
+  name String
+
+  /// Description of the address (landmarks, floor, directions, etc.)
+  description String?
+
+  /// Latitude coordinate
+  latitude Decimal
+
+  /// Longitude coordinate
+  longitude Decimal
+
+  /// Whether this is the default address for the seller
+  isDefault Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([sellerId])
+}

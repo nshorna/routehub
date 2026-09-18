@@ -1,0 +1,330 @@
+"use client"
+
+import type React from "react"
+import type { Seller } from "@/lib/types"
+import { SellerNav } from "./seller-nav"
+import { useState, useEffect, useRef, useCallback } from "react"
+import { NotificationBanner } from "@/components/shared/notification-banner"
+import { MapPin, Package, Navigation } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { useAuth } from "@/lib/auth-context"
+import { normalizePhoneTo233 } from "@/lib/utils"
+import Script from "next/script"
+
+declare global {
+  interface Window {
+    google: any
+    initMap?: () => void
+  }
+}
+
+interface Address {
+  id: string
+  name: string
+  description: string | null
+  latitude: number
+  longitude: number
+}
+
+interface NewBookingProps {
+  seller: Seller
+}
+
+export function NewBooking({ seller }: NewBookingProps) {
+  const router = useRouter()
+  const { signOut } = useAuth()
+  const [formData, setFormData] = useState({
+    customerName: "",
+    customerPhone: "",
+    dropoffAddress: "",
+    parcelSize: "small",
+    parcelWeight: "",
+    instructions: "",
+  })
+
+  const [estimatedFare, setEstimatedFare] = useState(0)
+  const [notification, setNotification] = useState<{ message: string; type: "success" | "error" } | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target
+    setFormData((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const calculateFare = () => {
+    const baseFare = 3.5
+    const sizeMultiplier = { small: 1, medium: 1.3, large: 1.6 }[formData.parcelSize] || 1
+    const weight = Number.parseFloat(formData.parcelWeight) || 1
+    const weightMultiplier = weight > 5 ? 1.2 : 1
+    const fare = baseFare * sizeMultiplier * weightMultiplier
+    setEstimatedFare(fare)
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!formData.customerName || !formData.customerPhone || !formData.dropoffAddress) {
+      setNotification({
+        message: "Please fill in all required fields",
+        type: "error",
+      })
+      return
+    }
+
+    // Ensure fare is up-to-date before submitting
+    calculateFare()
+
+    setIsSubmitting(true)
+    setNotification(null)
+
+    try {
+      // Normalize phone number to +233 format before submitting
+      const normalizedPhone = normalizePhoneTo233(formData.customerPhone)
+      
+      const response = await fetch("/api/seller/orders", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          sellerId: seller.id,
+          pickupAddress: seller.pickupAddress,
+          dropoffAddress: formData.dropoffAddress,
+          customerName: formData.customerName,
+          customerPhone: normalizedPhone,
+          notes: formData.instructions,
+          fee: estimatedFare,
+        }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data.error || "Failed to create order")
+      }
+
+      const { delivery } = await response.json()
+
+      setNotification({
+        message: `Booking confirmed! Order ${delivery.orderId} total: $${delivery.fee.toFixed(2)}`,
+        type: "success",
+      })
+
+      // Optionally navigate to tracking page for this order
+      router.push(`/seller/orders/${delivery.orderId}`)
+
+      setFormData({
+        customerName: "",
+        customerPhone: "",
+        dropoffAddress: "",
+        parcelSize: "small",
+        parcelWeight: "",
+        instructions: "",
+      })
+      setEstimatedFare(0)
+    } catch (error) {
+      console.error("Failed to create order", error)
+      setNotification({
+        message: "Failed to create order. Please try again.",
+        type: "error",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleLogout = async () => {
+    try {
+      localStorage.removeItem('selectedSellerAccountId')
+      await signOut()
+      router.push('/')
+    } catch (error) {
+      console.error('Failed to log out:', error)
+      setNotification({
+        message: "Failed to log out",
+        type: "error",
+      })
+    }
+  }
+
+  return (
+    <div className="flex flex-col md:flex-row h-screen bg-background">
+      <SellerNav onLogout={handleLogout} />
+
+      <main className="flex-1 overflow-auto p-4 md:p-6 mt-16 md:mt-0">
+        {notification && (
+          <NotificationBanner
+            message={notification.message}
+            type={notification.type}
+            onClose={() => setNotification(null)}
+          />
+        )}
+
+        <div className="max-w-2xl mx-auto">
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-2">Book a Delivery</h1>
+          <p className="text-xs md:text-sm text-muted-foreground mb-6">From: {seller.pickupAddress}</p>
+
+          <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
+            {/* Customer Information */}
+            <div className="bg-card rounded-lg border border-border p-4 md:p-6">
+              <h2 className="text-base md:text-lg font-semibold text-foreground mb-4">Customer Information</h2>
+              <div className="space-y-3 md:space-y-4">
+                <div>
+                  <label className="block text-xs md:text-sm font-medium text-foreground mb-2">
+                    Customer Name <span className="text-destructive">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="customerName"
+                    value={formData.customerName}
+                    onChange={handleChange}
+                    placeholder="Enter customer name"
+                    className="w-full border border-border rounded-lg px-3 md:px-4 py-2 text-sm md:text-base text-foreground bg-background focus:ring-2 focus:ring-primary outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs md:text-sm font-medium text-foreground mb-2">
+                    Customer Phone <span className="text-destructive">*</span>
+                  </label>
+                  <input
+                    type="tel"
+                    name="customerPhone"
+                    value={formData.customerPhone}
+                    onChange={handleChange}
+                    onBlur={async () => {
+                      if (!formData.customerPhone) return
+                      try {
+                        const normalizedPhone = normalizePhoneTo233(formData.customerPhone)
+                        const res = await fetch("/api/customers/lookup", {
+                          method: "POST",
+                          headers: {
+                            "Content-Type": "application/json",
+                          },
+                          body: JSON.stringify({ phone: normalizedPhone }),
+                        })
+                        if (!res.ok) return
+                        const data = await res.json()
+                        if (data.customer) {
+                          setFormData((prev) => ({
+                            ...prev,
+                            customerName: prev.customerName || data.customer.name || "",
+                            customerPhone: normalizePhoneTo233(data.customer.phone || prev.customerPhone),
+                          }))
+                        }
+                      } catch (error) {
+                        console.error("Failed to lookup customer", error)
+                      }
+                    }}
+                    placeholder="e.g., +1 (555) 000-0000"
+                    className="w-full border border-border rounded-lg px-3 md:px-4 py-2 text-sm md:text-base text-foreground bg-background focus:ring-2 focus:ring-primary outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Delivery Details */}
+            <div className="bg-card rounded-lg border border-border p-4 md:p-6">
+              <h2 className="text-base md:text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+                <MapPin className="w-4 h-4 md:w-5 md:h-5" />
+                Delivery Location
+              </h2>
+              <div>
+                <label className="block text-xs md:text-sm font-medium text-foreground mb-2">
+                  Drop-off Address <span className="text-destructive">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="dropoffAddress"
+                  value={formData.dropoffAddress}
+                  onChange={handleChange}
+                  placeholder="Enter drop-off address with autocomplete"
+                  className="w-full border border-border rounded-lg px-3 md:px-4 py-2 text-sm md:text-base text-foreground bg-background focus:ring-2 focus:ring-primary outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Parcel Information */}
+            <div className="bg-card rounded-lg border border-border p-4 md:p-6">
+              <h2 className="text-base md:text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+                <Package className="w-4 h-4 md:w-5 md:h-5" />
+                Parcel Details
+              </h2>
+              <div className="space-y-3 md:space-y-4">
+                <div>
+                  <label className="block text-xs md:text-sm font-medium text-foreground mb-2">Parcel Size</label>
+                  <select
+                    name="parcelSize"
+                    value={formData.parcelSize}
+                    onChange={handleChange}
+                    className="w-full border border-border rounded-lg px-3 md:px-4 py-2 text-sm md:text-base text-foreground bg-background focus:ring-2 focus:ring-primary outline-none"
+                  >
+                    <option value="small">Small (Documents, Small Items)</option>
+                    <option value="medium">Medium (Packages, Books)</option>
+                    <option value="large">Large (Boxes, Electronics)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs md:text-sm font-medium text-foreground mb-2">
+                    Estimated Weight (kg)
+                  </label>
+                  <input
+                    type="number"
+                    name="parcelWeight"
+                    value={formData.parcelWeight}
+                    onChange={(e) => {
+                      handleChange(e)
+                      calculateFare()
+                    }}
+                    placeholder="e.g., 2.5"
+                    step="0.1"
+                    className="w-full border border-border rounded-lg px-3 md:px-4 py-2 text-sm md:text-base text-foreground bg-background focus:ring-2 focus:ring-primary outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs md:text-sm font-medium text-foreground mb-2">
+                    Special Instructions
+                  </label>
+                  <textarea
+                    name="instructions"
+                    value={formData.instructions}
+                    onChange={handleChange}
+                    placeholder="e.g., Handle with care, Fragile items..."
+                    rows={3}
+                    className="w-full border border-border rounded-lg px-3 md:px-4 py-2 text-sm md:text-base text-foreground bg-background focus:ring-2 focus:ring-primary outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Estimated Fare */}
+            <div className="bg-primary/10 border border-primary rounded-lg p-4 md:p-6">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                  <p className="text-xs md:text-sm text-muted-foreground mb-1">Estimated Delivery Fare</p>
+                  <p className="text-2xl md:text-3xl font-bold text-primary">
+                    ${estimatedFare.toFixed(2)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={calculateFare}
+                  className="bg-primary text-primary-foreground px-6 py-2 rounded-lg font-semibold text-sm md:text-base hover:bg-primary/90 transition-colors whitespace-nowrap"
+                >
+                  Calculate Fare
+                </button>
+              </div>
+            </div>
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full bg-primary text-primary-foreground py-2 md:py-3 rounded-lg font-semibold text-sm md:text-base hover:bg-primary/90 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? "Booking..." : "Book Delivery"}
+            </button>
+          </form>
+        </div>
+      </main>
+    </div>
+  )
+}

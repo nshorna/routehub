@@ -1,0 +1,112 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --card: #f8fafc;
+  --ring: #0f766e;
+  --input: #e2e8f0;
+  --muted: #f8fafc;
+  --accent: #ccfbf1;
+  --border: #e2e8f0;
+  --radius: 0.5rem;
+  --shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.08), 0 1px 2px 0 rgba(15, 23, 42, 0.04);
+  --popover: #ffffff;
+  --primary: #0f766e;
+  --spacing: 0.25rem;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --secondary: #f1f5f9;
+  --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -2px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -1px rgba(15, 23, 42, 0.04);
+  --shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(15, 23, 42, 0.1), 0 10px 10px -5px rgba(15, 23, 42, 0.04);
+  --background: #ffffff;
+  --font-serif: "Georgia", "Times New Roman", serif;
+  --foreground: #0f172a;
+  --shadow-2xl: 0 25px 50px -12px rgba(15, 23, 42, 0.25);
+  --destructive: #ef4444;
+  --card-foreground: #0f172a;
+  --muted-foreground: #64748b;
+  --accent-foreground: #134e4a;
+  --popover-foreground: #0f172a;
+  --primary-foreground: #ffffff;
+  --secondary-foreground: #334155;
+  --destructive-foreground: #ffffff;
+}
+
+.dark {
+  --card: #111827;
+  --ring: #14b8a6;
+  --input: #374151;
+  --muted: #1f2937;
+  --accent: #134e4a;
+  --border: #374151;
+  --radius: 0.5rem;
+  --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.4), 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --popover: #111827;
+  --primary: #14b8a6;
+  --spacing: 0.25rem;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --secondary: #1f2937;
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.45), 0 4px 6px -2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.35);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.35);
+  --background: #0b1220;
+  --font-serif: "Georgia", "Times New Roman", serif;
+  --foreground: #f8fafc;
+  --shadow-2xl: 0 0.25rem 0.5rem 0 rgba(0, 0, 0, 0.8);
+  --destructive: #f87171;
+  --card-foreground: #f8fafc;
+  --muted-foreground: #9ca3af;
+  --accent-foreground: #ccfbf1;
+  --popover-foreground: #f8fafc;
+  --primary-foreground: #042f2e;
+  --secondary-foreground: #d1d5db;
+  --destructive-foreground: #111827;
+}
+
+@theme inline {
+  --color-card: var(--card);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-border: var(--border);
+  --color-radius: var(--radius);
+  --color-shadow: var(--shadow);
+  --color-popover: var(--popover);
+  --color-primary: var(--primary);
+  --color-spacing: var(--spacing);
+  --color-font-mono: var(--font-mono);
+  --color-font-sans: var(--font-sans);
+  --color-secondary: var(--secondary);
+  --color-shadow-lg: var(--shadow-lg);
+  --color-shadow-md: var(--shadow-md);
+  --color-shadow-sm: var(--shadow-sm);
+  --color-shadow-xl: var(--shadow-xl);
+  --color-background: var(--background);
+  --color-font-serif: var(--font-serif);
+  --color-foreground: var(--foreground);
+  --color-shadow-2xl: var(--shadow-2xl);
+  --color-destructive: var(--destructive);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-destructive-foreground: var(--destructive-foreground);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
