@@ -37,6 +37,10 @@ next-env.d.ts
 
 # prisma
 /lib/generated
+prisma/*.db
+prisma/*.db-journal
+*.db
+*.db-journal
 
 # assets folder (user uploaded files)
 /assets

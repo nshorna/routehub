@@ -1,41 +1,36 @@
 import 'dotenv/config'
-import { PrismaMariaDb } from '@prisma/adapter-mariadb'
+import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3'
 import { PrismaClient } from '../lib/generated/prisma/client'
-import { PrismaPg } from '@prisma/adapter-pg'
 
-// const adapter = new PrismaMariaDb(
-//     {
-//         database: String(process.env.DB_NAME),
-//         user: String(process.env.DB_USER),
-//         password: String(process.env.DB_PASSWORD),
-//         host: String(process.env.DB_HOST),
-//         port: parseInt(String(process.env.DB_PORT) || '3306'),
-//     }, 
-//     {
-//     onConnectionError: (error) => {
-//         console.error('onConnectionError: Error connecting to database:', error)
-//         // Don't throw - let Prisma handle retries
-//     }
-// })
+/**
+ * Local-first Prisma client using SQLite via better-sqlite3.
+ * Set DATABASE_URL to a file URL, e.g. file:./prisma/dev.db
+ */
+const connectionString = process.env.DATABASE_URL
+if (!connectionString) {
+  throw new Error(
+    'DATABASE_URL is not set. Copy env.sample to .env.local and use file:./prisma/dev.db for local SQLite.'
+  )
+}
 
-// Use postgres adapter
-const adapter = new PrismaPg(
-    {
-        database: String(process.env.DB_NAME),
-        user: String(process.env.DB_USER),
-        password: String(process.env.DB_PASSWORD),
-        host: String(process.env.DB_HOST),
-        port: parseInt(String(process.env.DB_PORT) || '5432'),
-    },
-    {
-        onConnectionError: (error) => {
-            console.error('onConnectionError: Error connecting to database:', error)
-            // Don't throw - let Prisma handle retries
-        }
-    }
-)
+const adapter = new PrismaBetterSqlite3({ url: connectionString })
 
-export const prisma = new PrismaClient({
+const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
+
+export const prisma =
+  globalForPrisma.prisma ??
+  new PrismaClient({
     adapter,
-    // log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-})
+  })
+
+if (process.env.NODE_ENV !== 'production') {
+  globalForPrisma.prisma = prisma
+}
+
+async function shutdown() {
+  await prisma.$disconnect()
+  process.exit(0)
+}
+
+process.on('SIGINT', shutdown)
+process.on('SIGTERM', shutdown)

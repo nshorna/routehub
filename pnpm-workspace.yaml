@@ -1,6 +1,7 @@
 onlyBuiltDependencies:
   - '@firebase/util'
   - '@prisma/engines'
+  - better-sqlite3
   - prisma
   - protobufjs
   - sharp
